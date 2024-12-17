@@ -11,6 +11,8 @@ declare(strict_types=1);
  */
 use Hyperf\Collection\Collection;
 use Hyperf\Contract\Arrayable;
+use Hyperf\Support\Once;
+use Hyperf\Support\Onceable;
 use Hyperf\Support\Optional;
 
 if (! function_exists('value')) {
@@ -340,5 +342,25 @@ if (! function_exists('config')) {
     function config(string $key, $default = null)
     {
         return \Hyperf\Config\config($key, $default);
+    }
+}
+
+if (! function_exists('once')) {
+    /**
+     * Ensures a callable is only called once, and returns the result on subsequent calls.
+     *
+     * @template  TReturnType
+     *
+     * @param callable(): TReturnType $callback
+     * @return TReturnType
+     */
+    function once(callable $callback)
+    {
+        $onceable = Onceable::tryFromTrace(
+            debug_backtrace(DEBUG_BACKTRACE_PROVIDE_OBJECT, 2),
+            $callback,
+        );
+
+        return $onceable ? Once::instance()->value($onceable) : call_user_func($callback);
     }
 }
