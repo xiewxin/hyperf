@@ -115,7 +115,13 @@ class AnnotationManager
 
     protected function getAnnotation(string $annotation, string $className, string $method): AbstractAnnotation
     {
-        return $this->getAnnotations($annotation, $className, $method)[0];
+        $collector = AnnotationCollector::get($className);
+        $result = $collector['_m'][$method][$annotation] ?? null;
+        if (! $result instanceof $annotation) {
+            throw new CacheException(sprintf('Annotation %s in %s:%s not exist.', $annotation, $className, $method));
+        }
+
+        return $result;
     }
 
     /**
