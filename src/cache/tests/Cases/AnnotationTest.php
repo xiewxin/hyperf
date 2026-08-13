@@ -62,6 +62,8 @@ class AnnotationTest extends TestCase
         foreach ($attributes as $attribute) {
             $attribute->newInstance()->collectMethod(CacheEvictStub::class, 'handle');
         }
+        $singleAttribute = (new ReflectionMethod(CacheEvictStub::class, 'handleSingle'))->getAttributes(CacheEvict::class)[0];
+        $singleAttribute->newInstance()->collectMethod(CacheEvictStub::class, 'handleSingle');
 
         $manager = new AnnotationManager(
             Mockery::mock(ConfigInterface::class),
@@ -78,6 +80,10 @@ class AnnotationTest extends TestCase
         $this->assertSame('secondary', $values[1][2]);
         $this->assertTrue($values[1][3]->collect);
         $this->assertSame($values[0], $manager->getCacheEvictValue(CacheEvictStub::class, 'handle', ['id' => 7]));
+        $this->assertSame(
+            ['single:7', false, 'default'],
+            array_slice($manager->getCacheEvictValue(CacheEvictStub::class, 'handleSingle', ['id' => 7]), 0, 3)
+        );
     }
 
     public function testIntCacheableAndCachePut()
@@ -161,6 +167,11 @@ class CacheEvictStub
     #[CacheEvict(prefix: 'user', value: 'user_#{id}')]
     #[CacheEvict(prefix: 'role', all: true, group: 'secondary', collect: true)]
     public function handle(int $id): void
+    {
+    }
+
+    #[CacheEvict(prefix: 'single')]
+    public function handleSingle(int $id): void
     {
     }
 }
