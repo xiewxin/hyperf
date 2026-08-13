@@ -116,8 +116,9 @@ class CacheEvictAspectTest extends TestCase
         $this->assertSame('result', (new CacheEvictAspect($manager, $annotationManager))->process($point));
     }
 
-    public function testProcessStopsOnFirstFailure(): void
+    public function testProcessStopsOnMiddleFailure(): void
     {
+        $events = [];
         $processCount = 0;
         $exception = new RuntimeException('cache delete failed');
 
@@ -125,13 +126,24 @@ class CacheEvictAspectTest extends TestCase
         $annotationManager->shouldReceive('getCacheEvictValues')->once()->andReturn([
             ['user:7', false, 'first', new CacheEvict('user')],
             ['role:7', false, 'second', new CacheEvict('role')],
+            ['permission:7', false, 'third', new CacheEvict('permission')],
         ]);
 
-        $driver = Mockery::mock(DriverInterface::class);
-        $driver->shouldReceive('delete')->once()->with('user:7')->andThrow($exception);
+        $firstDriver = Mockery::mock(DriverInterface::class);
+        $firstDriver->shouldReceive('delete')->once()->with('user:7')->andReturnUsing(function () use (&$events) {
+            $events[] = 'delete:user:7';
+            return true;
+        });
+        $secondDriver = Mockery::mock(DriverInterface::class);
+        $secondDriver->shouldReceive('delete')->once()->with('role:7')->andReturnUsing(function () use (&$events, $exception) {
+            $events[] = 'delete:role:7';
+            throw $exception;
+        });
 
         $manager = Mockery::mock(CacheManager::class);
-        $manager->shouldReceive('getDriver')->once()->with('first')->andReturn($driver);
+        $manager->shouldReceive('getDriver')->once()->ordered()->with('first')->andReturn($firstDriver);
+        $manager->shouldReceive('getDriver')->once()->ordered()->with('second')->andReturn($secondDriver);
+        $manager->shouldNotReceive('getDriver')->with('third');
 
         $point = new ProceedingJoinPoint(function () use (&$processCount) {
             ++$processCount;
@@ -147,6 +159,7 @@ class CacheEvictAspectTest extends TestCase
         } catch (RuntimeException $throwable) {
             $this->assertSame($exception, $throwable);
         }
+        $this->assertSame(['delete:user:7', 'delete:role:7'], $events);
         $this->assertSame(0, $processCount);
     }
 
